@@ -2,6 +2,7 @@ import pygame
 import random
 import time
 import os
+import sys
 from datetime import datetime
 from typing import Tuple, List, Optional
 
@@ -275,10 +276,197 @@ def get_grid_size():
         print("Invalid input. Using default size 15x20.")
         return 15, 20
 
-if __name__ == "__main__":
-    # Get grid size from user
-    grid_width, grid_height = get_grid_size()
+def play_ai_visually(model_path: str, grid_width: int = 15, grid_height: int = 20):
+    """
+    Play the game visually using a trained AI model.
     
-    # Create and run the game
-    game = SnakeGame(grid_width, grid_height)
-    game.run()
+    Args:
+        model_path: Path to the trained model
+        grid_width: Width of the game grid
+        grid_height: Height of the game grid
+    """
+    try:
+        # Import RL components
+        from rl_algorithm import SnakeEnvironment, DQNAgent, STATE_SIZE
+    except ImportError as e:
+        print(f"Error importing RL components: {e}")
+        print("Make sure rl_algorithm.py is in the same directory.")
+        return
+    
+    # Initialize pygame
+    pygame.init()
+    screen = pygame.display.set_mode((grid_width * 30, grid_height * 30))
+    pygame.display.set_caption("AI Snake Game - Model Evaluation")
+    clock = pygame.time.Clock()
+    
+    # Colors
+    BLACK = (0, 0, 0)
+    WHITE = (255, 255, 255)
+    RED = (255, 0, 0)
+    GREEN = (0, 255, 0)
+    BLUE = (0, 0, 255)
+    YELLOW = (255, 255, 0)
+    
+    # Create environment and agent
+    env = SnakeEnvironment(grid_width, grid_height)
+    agent = DQNAgent(state_size=STATE_SIZE, action_size=4)
+    
+    # Load the trained model
+    try:
+        agent.load_model(model_path)
+        print(f"Model loaded successfully from {model_path}")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return
+    
+    # Game loop
+    running = True
+    move_timer = 0
+    move_delay = 200  # milliseconds between moves
+    episode_count = 0
+    total_score = 0
+    
+    print("AI Snake Game Controls:")
+    print("- ESC: Quit game")
+    print("- SPACE: Restart current episode")
+    print("- R: Reset and start new episode")
+    print(f"Grid size: {grid_width}x{grid_height}")
+    print("Watching AI play...")
+    
+    while running:
+        dt = clock.tick(60)
+        move_timer += dt
+        
+        # Handle pygame events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_SPACE and env.done:
+                    # Restart current episode
+                    env.reset()
+                    episode_count += 1
+                    print(f"Episode {episode_count} - Score: {env.score}")
+                elif event.key == pygame.K_r:
+                    # Reset and start new episode
+                    env.reset()
+                    episode_count += 1
+                    print(f"Episode {episode_count} - Score: {env.score}")
+        
+        # AI makes a move at regular intervals
+        if move_timer >= move_delay and not env.done:
+            state = env.get_state()
+            action = agent.act(state, training=False)
+            next_state, reward, done, info = env.step(action)
+            move_timer = 0
+            
+            if done:
+                total_score += env.score
+                avg_score = total_score / episode_count if episode_count > 0 else 0
+                print(f"Episode {episode_count + 1} - Score: {env.score} | Avg Score: {avg_score:.2f}")
+                time.sleep(1)  # Pause before auto-restart
+                env.reset()
+                episode_count += 1
+        
+        # Draw the game
+        screen.fill(BLACK)
+        
+        # Draw snake
+        for i, segment in enumerate(env.snake):
+            x = segment[0] * 30
+            y = segment[1] * 30
+            color = GREEN if i == 0 else BLUE  # Head is green, body is blue
+            pygame.draw.rect(screen, color, (x, y, 30, 30))
+            pygame.draw.rect(screen, WHITE, (x, y, 30, 30), 1)
+        
+        # Draw food
+        food_x = env.food[0] * 30
+        food_y = env.food[1] * 30
+        pygame.draw.rect(screen, RED, (food_x, food_y, 30, 30))
+        pygame.draw.rect(screen, WHITE, (food_x, food_y, 30, 30), 1)
+        
+        # Draw grid lines
+        for x in range(0, grid_width * 30, 30):
+            pygame.draw.line(screen, (50, 50, 50), (x, 0), (x, grid_height * 30))
+        for y in range(0, grid_height * 30, 30):
+            pygame.draw.line(screen, (50, 50, 50), (0, y), (grid_width * 30, y))
+        
+        # Draw score and episode info
+        font = pygame.font.Font(None, 36)
+        score_text = font.render(f"Score: {env.score}", True, WHITE)
+        episode_text = font.render(f"Episode: {episode_count + 1}", True, WHITE)
+        avg_text = font.render(f"Avg Score: {total_score / max(episode_count, 1):.1f}", True, WHITE)
+        
+        screen.blit(score_text, (10, 10))
+        screen.blit(episode_text, (10, 50))
+        screen.blit(avg_text, (10, 90))
+        
+        # Draw game over message
+        if env.done:
+            game_over_font = pygame.font.Font(None, 48)
+            game_over_text = game_over_font.render("GAME OVER", True, RED)
+            restart_text = font.render("Press SPACE to restart or R for new episode", True, WHITE)
+            
+            text_rect = game_over_text.get_rect(center=(grid_width * 15, grid_height * 15 - 20))
+            restart_rect = restart_text.get_rect(center=(grid_width * 15, grid_height * 15 + 20))
+            
+            screen.blit(game_over_text, text_rect)
+            screen.blit(restart_text, restart_rect)
+        
+        pygame.display.flip()
+    
+    pygame.quit()
+    print(f"AI evaluation completed. Total episodes: {episode_count}, Average score: {total_score / max(episode_count, 1):.2f}")
+
+if __name__ == "__main__":
+    # Check for AI evaluation mode
+    if "--ai-eval" in sys.argv:
+        # AI evaluation mode
+        print("AI Evaluation Mode")
+        print("Available models:")
+        
+        # List available models
+        models_dir = "models"
+        if os.path.exists(models_dir):
+            model_files = [f for f in os.listdir(models_dir) if f.endswith('.pth')]
+            if model_files:
+                for i, model_file in enumerate(model_files, 1):
+                    print(f"{i}. {model_file}")
+                
+                # Get model selection
+                try:
+                    choice = input("\nSelect model number (or press Enter for latest): ").strip()
+                    if choice:
+                        model_index = int(choice) - 1
+                        if 0 <= model_index < len(model_files):
+                            model_path = os.path.join(models_dir, model_files[model_index])
+                        else:
+                            print("Invalid selection. Using latest model.")
+                            model_path = os.path.join(models_dir, sorted(model_files)[-1])
+                    else:
+                        # Use latest model
+                        model_path = os.path.join(models_dir, sorted(model_files)[-1])
+                    
+                    print(f"Using model: {model_path}")
+                    
+                    # Get grid size
+                    grid_width, grid_height = get_grid_size()
+                    
+                    # Run AI evaluation
+                    play_ai_visually(model_path, grid_width, grid_height)
+                    
+                except (ValueError, IndexError):
+                    print("Invalid input. Exiting.")
+            else:
+                print("No trained models found in models/ directory.")
+                print("Train a model first using: python -c \"from rl_algorithm import train_agent; train_agent()\"")
+        else:
+            print("Models directory not found.")
+            print("Train a model first using: python -c \"from rl_algorithm import train_agent; train_agent()\"")
+    else:
+        # Normal manual game mode
+        grid_width, grid_height = get_grid_size()
+        game = SnakeGame(grid_width, grid_height)
+        game.run()

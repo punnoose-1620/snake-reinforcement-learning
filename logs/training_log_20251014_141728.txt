@@ -1,0 +1,16 @@
+Snake DQN Training Log - 20251014_141728
+==================================================
+Grid Size: 15x20
+Total Episodes: 5
+Final Average Score: 0.00
+Best Score: 0
+Final Epsilon: 0.4621
+
+Episode Details:
+Episode	Score	AvgScore	Epsilon	Reward
+--------------------------------------------------
+0	0	0.00	0.7366	-1.00
+1	0	0.00	0.6798	-1.00
+2	0	0.00	0.5591	-1.00
+3	0	0.00	0.5058	-1.00
+4	0	0.00	0.4621	-1.00
