@@ -721,7 +721,7 @@ class DQNAgent:
         except Exception as e:
             raise RuntimeError(f"Error loading model from {filepath}: {str(e)}")
 
-def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 20, curriculum: bool = True):
+def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 20, curriculum: bool = True, starvation_limit: int = 200):
     """
     Train the DQN agent on the Snake game.
     
@@ -730,6 +730,7 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
         grid_width: Width of the game grid
         grid_height: Height of the game grid
         curriculum: Whether to use curriculum learning (start with smaller grids)
+        starvation_limit: Maximum steps without eating food before dropping episode
     """
     
     # Create necessary directories
@@ -748,10 +749,16 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
     epsilons = []
     losses = []
     episode_rewards = []
+    starvation_drops = 0  # Count episodes dropped due to starvation
     
     # Training parameters
     save_frequency = 100  # Save model every 100 episodes
     log_frequency = 10    # Log progress every 10 episodes
+    
+    # Performance degradation limiter parameters
+    max_avg_score = 0.0  # Track the maximum average score achieved
+    consecutive_degrading_episodes = 0  # Count consecutive episodes with degrading performance
+    max_degrading_episodes = 10  # Stop training after this many consecutive degrading episodes
     
     # Curriculum learning parameters
     if curriculum:
@@ -787,6 +794,7 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
         episode_reward = 0
         episode_loss = 0
         steps = 0
+        steps_since_food = 0  # Track steps since last food eaten
         
         while not done:
             # Choose action
@@ -809,7 +817,22 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
             episode_reward += reward
             steps += 1
             
-            # Prevent infinite episodes
+            # Check if food was eaten (reward == 1.0)
+            if reward == 1.0:
+                steps_since_food = 0  # Reset counter when food is eaten
+            else:
+                steps_since_food += 1
+            
+            # Starvation check: drop episode if too many steps without food
+            if steps_since_food >= starvation_limit:
+                done = True
+                starvation_drops += 1
+                # Give a negative reward for starvation
+                episode_reward -= 10.0  # Penalty for starvation
+                info["starvation"] = True
+                print(f"Episode {episode}: Starvation after {steps_since_food} steps without food")
+            
+            # Prevent infinite episodes (fallback safety)
             if steps > 1000:
                 done = True
         
@@ -834,9 +857,10 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
         # Log progress
         if episode % log_frequency == 0:
             grid_info = f"({current_width}x{current_height})" if curriculum else ""
+            starvation_info = f" | Starvation: {starvation_drops}" if starvation_drops > 0 else ""
             print(f"Episode {episode:4d} | Score: {env.score:3d} | "
                   f"Avg Score: {avg_score:6.2f} | Epsilon: {agent.epsilon:.4f} | "
-                  f"Steps: {steps:3d} | Reward: {episode_reward:6.2f} {grid_info}")
+                  f"Steps: {steps:3d} | Reward: {episode_reward:6.2f} {grid_info}{starvation_info}")
         
         # Save model periodically
         if episode % save_frequency == 0 and episode > 0:
@@ -848,6 +872,30 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
         if len(avg_scores) >= 100 and avg_scores[-1] > 50:
             print(f"Early stopping: Average score {avg_scores[-1]:.2f} > 50")
             break
+        
+        # Performance degradation limiter
+        if len(avg_scores) >= 100:
+            current_avg = avg_scores[-1]
+            
+            # Update max average score if current is higher
+            if current_avg > max_avg_score:
+                max_avg_score = current_avg
+                consecutive_degrading_episodes = 0  # Reset counter when new max is reached
+                print(f"New max average score: {max_avg_score:.2f} (episode {episode})")
+            
+            # Check if current average is degrading (lower than previous episode)
+            elif len(avg_scores) >= 2 and current_avg < avg_scores[-2]:
+                consecutive_degrading_episodes += 1
+                
+                # Check if we've reached the degradation limit
+                if consecutive_degrading_episodes >= max_degrading_episodes:
+                    print(f"Early stopping: Performance degraded for {consecutive_degrading_episodes} consecutive episodes")
+                    print(f"Max average score: {max_avg_score:.2f}, Current: {current_avg:.2f}")
+                    break
+            
+            # Reset counter if current average equals or exceeds max (even if not new max)
+            elif current_avg >= max_avg_score:
+                consecutive_degrading_episodes = 0
     
     # Save final model
     final_model_path = f"models/snake_dqn_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pth"
@@ -864,6 +912,10 @@ def train_agent(episodes: int = 5000, grid_width: int = 15, grid_height: int = 2
     print(f"Final average score: {avg_scores[-1]:.2f}")
     print(f"Best score: {max(scores)}")
     print(f"Final epsilon: {agent.epsilon:.4f}")
+    print(f"Max average score achieved: {max_avg_score:.2f}")
+    print(f"Consecutive degrading episodes: {consecutive_degrading_episodes}")
+    print(f"Episodes dropped due to starvation: {starvation_drops}")
+    print(f"Starvation rate: {starvation_drops/episodes:.2%}")
     print(f"Final model saved to: {final_model_path}")
 
 def create_training_plots(scores, avg_scores, epsilons, losses, episode_rewards):
