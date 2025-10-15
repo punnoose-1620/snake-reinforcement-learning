@@ -126,7 +126,7 @@ class SnakeEnvironment:
         new_head = (head_x + self.direction[0], head_y + self.direction[1])
         
         # Initialize reward and info
-        base_reward = 0.0
+        reward = -1.0  # Default reward: -1 for all cases
         info = {"action": action, "direction": self.direction}
         
         # Check for collisions
@@ -134,16 +134,14 @@ class SnakeEnvironment:
         if (new_head[0] < 0 or new_head[0] >= self.grid_width or 
             new_head[1] < 0 or new_head[1] >= self.grid_height):
             self.done = True
-            base_reward = -1.0
             info["collision"] = "wall"
-            return self.get_state(), base_reward, self.done, info
+            return self.get_state(), reward, self.done, info
         
         # Self collision
         if new_head in self.snake:
             self.done = True
-            base_reward = -1.0
             info["collision"] = "self"
-            return self.get_state(), base_reward, self.done, info
+            return self.get_state(), reward, self.done, info
         
         # Move snake
         self.snake.insert(0, new_head)
@@ -151,7 +149,7 @@ class SnakeEnvironment:
         # Check if food is eaten
         if new_head == self.food:
             # Food eaten - snake grows, get positive reward
-            base_reward = 1.0
+            reward = 1.0  # +1 for eating food
             self.score += 1
             info["food_eaten"] = True
             info["score"] = self.score
@@ -161,53 +159,32 @@ class SnakeEnvironment:
         else:
             # No food eaten - remove tail
             self.snake.pop()
-            base_reward = 0.0
             info["food_eaten"] = False
-        
-        # ENHANCED REWARD SHAPING: Add additional rewards for better learning
-        total_reward = base_reward
-        
-        # Distance-based reward (encourage moving toward food)
-        if not self.done:
+            
+            # Check if the step was towards food (distance-based reward)
             food_x, food_y = self.food
             old_distance = abs(food_x - old_head_x) + abs(food_y - old_head_y)
             new_distance = abs(food_x - new_head[0]) + abs(food_y - new_head[1])
-            distance_reward = (old_distance - new_distance) * 0.2  # Increased from 0.1
-            total_reward += distance_reward
-            info["distance_reward"] = distance_reward
-        
-        # Survival reward (encourage staying alive)
-        if not self.done:
-            survival_reward = 0.02  # Increased from 0.01
-            total_reward += survival_reward
-            info["survival_reward"] = survival_reward
-        
-        # Efficiency reward (encourage shorter paths to food)
-        if not self.done and base_reward == 0.0:  # Only for non-food moves
-            food_x, food_y = self.food
-            current_distance = abs(food_x - new_head[0]) + abs(food_y - new_head[1])
-            max_distance = self.grid_width + self.grid_height
-            efficiency_reward = (1.0 - current_distance / max_distance) * 0.01
-            total_reward += efficiency_reward
-            info["efficiency_reward"] = efficiency_reward
-        
-        # Length bonus (encourage growing the snake)
-        if base_reward == 1.0:  # When food is eaten
-            length_bonus = len(self.snake) * 0.1  # Bonus proportional to snake length
-            total_reward += length_bonus
-            info["length_bonus"] = length_bonus
+            
+            if new_distance < old_distance:
+                # Moving towards food - give positive reward
+                reward = 0.1  # Small positive reward for moving towards food
+                info["towards_food"] = True
+            else:
+                # Moving away from food or same distance - keep negative reward
+                reward = -1.0
+                info["towards_food"] = False
         
         # Update info with current state
         info["snake_length"] = len(self.snake)
         info["head_position"] = new_head
         info["food_position"] = self.food
-        info["base_reward"] = base_reward
-        info["total_reward"] = total_reward
+        info["reward"] = reward
         
         # Get next state
         next_state = self.get_state()
         
-        return next_state, total_reward, self.done, info
+        return next_state, reward, self.done, info
     
     def get_state(self) -> np.ndarray:
         """

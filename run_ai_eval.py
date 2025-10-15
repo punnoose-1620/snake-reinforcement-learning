@@ -7,7 +7,7 @@ import sys
 import os
 
 def run_ai_evaluation():
-    """Run AI evaluation with 15x10 grid and latest model"""
+    """Run AI evaluation with 8x8 grid and latest model"""
     
     # Check if models directory exists
     if not os.path.exists("models"):
@@ -29,13 +29,13 @@ def run_ai_evaluation():
     
     model_path = os.path.join("models", latest_model)
     print(f"Using model: {latest_model}")
-    print(f"Grid size: 15x10")
+    print(f"Grid size: 8x8")
     print("Starting AI evaluation...")
     
     # Import and run the AI evaluation directly
     try:
         from snake_game import play_ai_visually
-        play_ai_visually(model_path, grid_width=15, grid_height=10)
+        play_ai_visually(model_path, grid_width=8, grid_height=8)
     except ImportError as e:
         print(f"Error importing snake_game: {e}")
         return
