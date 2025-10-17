@@ -2,6 +2,8 @@
 
 A complete Snake game implementation with Deep Q-Network (DQN) reinforcement learning, featuring visual AI evaluation and comprehensive logging.
 
+![Snake Game](./displayImage.png)
+
 ## Features
 
 - **Traditional Snake Game**: Classic snake gameplay with food collection and collision detection
@@ -173,6 +175,13 @@ python -c "from rl_algorithm import test_agent; test_agent('models/snake_dqn_fin
 - **Peak Performance**: Score 10 on 5x5 grid, Score 7 on 8x8 grid, Score 3 on 10x10 grid
 - **Training Improvement**: 2.3x better final average score vs 1000-episode curriculum training
 
+#### Advanced Training Results (with improved reward system and smart stopping)
+- **Final Average Score**: 5.21 (28.9x improvement over initial)
+- **Best Score Achieved**: 23 (3.8x improvement over initial)
+- **Training Episodes**: 240 (12.5x more efficient than 3000-episode run)
+- **Success Rate**: ~95% (9.5x improvement over initial)
+- **Training Efficiency**: 4.4x better than 3000-episode run in 8% of the time
+
 ## Logging
 
 The system creates comprehensive logs in multiple folders:
@@ -223,6 +232,39 @@ The system creates comprehensive logs in multiple folders:
 - **✅ Extended Training**: 3000 episodes with longer curriculum stages (750 episodes each)
 - **✅ Improved Performance**: 6.6x better final average score (0.18 → 1.18), 8x better success rate (10% → 80%)
 
+### Advanced Training Optimizations
+
+#### Starvation Limit Implementation
+- **Purpose**: Prevent unproductive episodes where the snake wanders aimlessly without eating food
+- **Mechanism**: Episodes automatically end after 200 steps without eating food
+- **Reward Penalty**: -10.0 penalty for starvation to discourage this behavior
+- **Benefits**: 
+  - Faster learning through more diverse experiences
+  - Prevents agent from getting stuck in unproductive patterns
+  - Reduces training time by eliminating wasted episodes
+- **Configuration**: `starvation_limit=200` (configurable parameter)
+
+#### Performance Degradation Limiter
+- **Purpose**: Stop training when performance peaks and starts declining (prevent overfitting)
+- **Mechanism**: Tracks maximum average score and consecutive degrading episodes
+- **Logic**: 
+  - Updates max average score when new peak is reached
+  - Counts consecutive episodes with declining performance
+  - Stops training after 10 consecutive degrading episodes
+  - Resets counter when performance recovers to max level
+- **Benefits**:
+  - Prevents overfitting and performance degradation
+  - Saves computational resources by stopping at optimal point
+  - Identifies true peak performance automatically
+- **Configuration**: `max_degrading_episodes=10` (configurable parameter)
+
+#### Improved Reward System
+- **Food Reward**: +1.0 for eating food (unchanged)
+- **Direction Reward**: +0.1 for moving toward food (new)
+- **Other Moves**: -1.0 for moving away from food or same distance
+- **Collision Penalty**: -1.0 for wall/self collision (unchanged)
+- **Benefits**: Provides intermediate rewards for good behavior, solving sparse reward problem
+
 ### Future Improvement Opportunities
 1. **Advanced Algorithms**: Double DQN, Dueling DQN, or Rainbow DQN
 2. **Transfer Learning**: Use best models from smaller grids as starting points
@@ -241,6 +283,12 @@ python -c "from rl_algorithm import train_agent; train_agent(episodes=1000, curr
 
 # Extended AI training for best performance (3000 episodes)
 python -c "from rl_algorithm import train_agent; train_agent(episodes=3000, curriculum=True)"
+
+# Advanced training with starvation limit and degradation limiter (recommended)
+python -c "from rl_algorithm import train_agent; train_agent(episodes=1000, curriculum=False, starvation_limit=200)"
+
+# Custom training with specific parameters
+python -c "from rl_algorithm import train_agent; train_agent(episodes=500, curriculum=True, starvation_limit=150)"
 
 # Visual AI evaluation
 python snake_game.py --ai-eval
