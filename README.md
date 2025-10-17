@@ -2,6 +2,8 @@
 
 A complete Snake game implementation with Deep Q-Network (DQN) reinforcement learning, featuring visual AI evaluation and comprehensive logging.
 
+![Snake Game](./displayImage.png)
+
 ## Features
 
 - **Traditional Snake Game**: Classic snake gameplay with food collection and collision detection
