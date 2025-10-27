@@ -604,13 +604,17 @@ class DQNAgent:
         # Compute current Q-values
         current_q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         
-        # Compute target Q-values using target network
+        # Compute target Q-values using Double DQN
         with torch.no_grad():
-            # Get next state Q-values from target network
-            next_q_values = self.target_network(next_states).max(1)[0]
+            # Get the actions that maximize Q values from current network (q_network)
+            next_q_values_online = self.q_network(next_states)
+            next_actions = next_q_values_online.argmax(1, keepdim=True)
+            
+            # Evaluate these actions using the target network
+            next_q_values_target = self.target_network(next_states).gather(1, next_actions).squeeze(1)
             
             # Compute target Q-values using Bellman equation
-            target_q_values = rewards + (self.gamma * next_q_values * ~dones)
+            target_q_values = rewards + (self.gamma * next_q_values_target * ~dones)
         
         # Compute loss (Mean Squared Error)
         loss = F.mse_loss(current_q_values, target_q_values)
